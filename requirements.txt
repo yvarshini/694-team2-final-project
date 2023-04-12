@@ -1,0 +1,8 @@
+jupyter==1.0.0
+jupyter-console==6.4.4
+jupyter-core==4.11.1
+jupyter-server==1.21.0
+jupyter_client==7.4.2
+jupyterlab-pygments==0.2.2
+jupyterlab-widgets==3.0.3
+pyscopg2-binary==2.9.6
