@@ -15,3 +15,11 @@ class InvalidSortCriterionError(Exception):
 class UnsuccessfulConnectionPostgreSQL(Exception):
     code = 400
     description = {"error message": "Unable to connect to PostgreSQL. Please try again."}
+
+class NoParametersGivenError(Exception):
+    code = 400
+    description = {"error message": "No search parameters specified. Please specify one of user_id, username, username_tweets, keyword, tweet_id or location."}
+
+class TooManyParametersGivenError(Exception):
+    code = 400
+    description = {"error message": "Too many search parameters specified. Please specify only one of user_id, username, username_tweets, keyword, tweet_id or location."}
