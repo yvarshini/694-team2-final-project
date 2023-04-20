@@ -11,3 +11,7 @@ class TweetNotFoundError(Exception):
 class InvalidSortCriterionError(Exception):
     code = 400
     description = {"error message": "The sort criterion specified is invalid. If you wish to sort your results, please specify one of 'oldestToNewest', 'newestToOldest' or 'popularity'."}
+
+class UnsuccessfulConnectionPostgreSQL(Exception):
+    code = 400
+    description = {"error message": "Unable to connect to PostgreSQL. Please try again."}
