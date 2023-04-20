@@ -1,4 +1,4 @@
-from routers.router import searchapp
+from routers import router
 from fastapi import FastAPI
 import uvicorn
 
@@ -22,7 +22,7 @@ app = FastAPI(
     openapi_url = "/openapi.json"
 )
 
-app.include_router(searchapp)
+app.include_router(router.router)
 
 if __name__ == "__main__":
     uvicorn.run(app)
