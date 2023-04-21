@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from search_app import search
+from utils.search_app_without_cache import search
 import sys
 import os
 from typing import Optional

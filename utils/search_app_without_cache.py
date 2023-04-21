@@ -5,6 +5,34 @@ from fastapi import HTTPException
 from exceptions.exceptions import *
 import requests
 
+# connecting to the PostgreSQL database
+try:
+    p_conn = psycopg2.connect(
+        dbname = "twitter",
+        user = "varshiniyanamandra",
+        password = "",
+        host = "localhost",
+        port = "5432"
+    )
+except psycopg2.OperationalError as e:
+    # raise an error if the connection is unsuccessful
+    print(f"Unable to connect to PostgreSQL: {e}")
+
+# opening a cursor to perform database operations
+p_cur = p_conn.cursor()
+
+# # print the PostgreSQL server information
+# print(p_conn.get_dsn_parameters(), "\n")
+
+# connect to the MongoDB database
+mongo_conn = MongoClient("mongodb+srv://vm574:twitter574@cluster0.nwilsw2.mongodb.net/?retryWrites=true&w=majority")
+mongo_db = mongo_conn['twitter_data']
+tweets_collection = mongo_db['tweets']
+
+# creating index
+tweets_collection.create_index([("text", "text")])
+
+# defining the cache class
 '''
 LRU cache is a cache removal algorithm where the least recently used items in a cache are removed to allocate space for new additions
 Implementation : LRU supports the Fast item lookup, constant time (o(1)) insertion and deletion,Ordered storage.
@@ -102,74 +130,18 @@ class LRUCache:
         node.prev = None
         self.head.prev = node
         self.head = node
+
+    def get_cache_items(self):
+        # Get a list of all the items currently in the cache
+        items = []
+        node = self.head
+        while node:
+            items.append((node.key, node.value))
+            node = node.next
+        return items
         
 if __name__ == '__main__':
-    
     lrucache = LRUCache(100)
-
-
-# <h3> <b>Caching - Current Trending Topics</b></h3>
-
-# In[4]:
-
-
-def get_trending_topics(self, topic):
-        response = self.get(topic)
-        if (response != null or response.isEmpty()):
-            return response        
-        else:
-            # write code to make a DB call when requestdata not in cache
-            response = retrieve_tweets_keyword(keyword = "corona", sort_criterion = 'oldestToNewest')
-            self.put(topic,response)
-
-
-# <h3><b>Caching - Tweet id</b></h3>
-
-# In[5]:
-
-
-def get_Tweets(self, tweetId):
-        response = self.get(tweetId)
-        if (response != null or response.isEmpty()):
-            return response        
-        else:
-            # Make a DB call when requestdata not in cache
-            response = retrieve_tweet(tweetId)
-            self.put(tweetId,response)
-
-
-# <h3><b>Caching - User Timelines </b></h3>
-
-# In[6]:
-
-
-def get_UserTimelines(self, tweetId):
-        response = self.get(tweetId)
-        if (response != null or response.isEmpty()):
-            return response        
-        else:
-            # Make a DB call when requestdata not in cache
-            response = retrieve_tweets_user(tweetId)
-            self.put(tweetId,response)
-
-
-# <h3><b>Caching - UserProfiles</b> </h3>
-
-# In[7]:
-
-
-def get_UserProfiles(self, username):
-        response = self.get(username)
-        if (response != null or response.isEmpty()):
-            return response        
-        else:
-            # Make a DB call when requestdata not in cache
-            response = get_user_info(tweetId)
-            self.put(username,response)
-
-
-# In[8]:
-
 
 # function to get user information
 def get_user_info(username):
@@ -181,6 +153,11 @@ def get_user_info(username):
             user_out (JSON object): user information corresponding to username
     """
     username = str(username)
+
+    # check if the user information is in the cache
+    user_out = lrucache.get(username)
+    if user_out is not None:
+        return user_out
     
     p_conn = psycopg2.connect(
         dbname = "twitter",
@@ -207,14 +184,99 @@ def get_user_info(username):
         'statuses_count': user_info[7],
         'favorites_count': user_info[8]
     }
+    lrucache.put(username, user_out)
     
     p_cur.close()
 
     return user_out
 
+# function to retreive tweets containing a specified keyword
+def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
+    """
+        Function to get the information of tweets based on a user-specified keyword.
+        Input:
+            keyword (str): user-specified keyword
+            sort_criterion (str): criteria for sorting the results
+                default: decreasing order of popularity (favorite count)
+                valid inputs:
+                    'oldestToNewest', 'newestToOldest', 'popularity'
+        Output:
+            out (list): list of tweets containing the keyword
+    """
 
-# In[9]:
+    # check if sort_criterion is valid, if specified:
+    if sort_criterion is not None:
+        if sort_criterion not in ['oldestToNewest', 'newestToOldest', 'popularity']:
+            raise HTTPException(status_code = InvalidSortCriterionError.code, detail = InvalidSortCriterionError.description)
 
+    out = []
+    query = {'$text': {'$search': keyword}}
+    tweets_match = tweets_collection.find(query).limit(10) # we can add .limit(PAGE_LIMIT) here, if needed
+    for result in tweets_match:
+        tweet = {
+            'id': result['_id'],
+            'text': result['text'],
+            'user_id': result['user_id'],
+            'quote_count': result['quote_count'],
+            'reply_count': result['reply_count'],
+            'retweet_count': result['retweet_count'],
+            'favorite_count': result['favorite_count'],
+            'created_at': result['timestamp'],
+            'coordinates': result['coordinates']
+        }
+        # add information on whether the tweet is a retweet
+        if 'retweet' in result:
+            tweet['retweet'] = "Yes"
+        else:
+            tweet['retweet'] = "No"
+
+        
+        out.append(tweet)
+
+    # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
+    if sort_criterion == "oldestToNewest":
+        out = sorted(out, key = lambda x: int(x['created_at']), reverse = False)
+    elif sort_criterion == "newestToOldest":
+        # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
+        out = sorted(out, key = lambda x: int(x['created_at']), reverse = True)
+    else:
+        # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
+        out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
+        
+    return out
+
+# function to search tweets based on tweet id
+def retrieve_tweet(tweet_id):
+    """
+        Function to get the information of a tweet based on a user-specified tweet ID.
+        Input:
+            tweet_id: user-specified tweet ID
+        Output:
+            tweet (JSON object): tweet corresponding to tweet_id
+    """
+    query = {'_id': tweet_id}
+    result = tweets_collection.find_one(query)
+    if result is None:
+        # raise an exception if the tweet doesn't exist in the database
+        raise HTTPException(status_code = TweetNotFoundError.code, detail = TweetNotFoundError.description)
+    tweet = {
+        'id': result['_id'],
+        'text': result['text'],
+        'user_id': result['user_id'],
+        'quote_count': result['quote_count'],
+        'reply_count': result['reply_count'],
+        'retweet_count': result['retweet_count'],
+        'favorite_count': result['favorite_count'],
+        'created_at': result['timestamp'],
+        'coordinates': result['coordinates']
+    }
+    # add information on whether the tweet is a retweet
+    if 'retweet' in result:
+        tweet['retweet'] = "Yes"
+    else:
+        tweet['retweet'] = "No"
+
+    return tweet
 
 # function to retrieve all tweets by a user
 def retrieve_tweets_user(username: str, sort_criterion = 'popularity'):
@@ -289,69 +351,70 @@ def retrieve_tweets_user(username: str, sort_criterion = 'popularity'):
         
     return tweets_list
 
-
-# In[10]:
-
-
-# function to search tweets based on tweet id
-def retrieve_tweet(tweet_id):
+# function to retreive the screen name from the user_id
+def retreive_screen_name(user_id):
     """
-        Function to get the information of a tweet based on a user-specified tweet ID.
+        Function to retrieve tweets near a specified location.
         Input:
-            tweet_id: user-specified tweet ID
+            user_id: user-specified user ID
         Output:
-            tweet (JSON object): tweet corresponding to tweet_id
+            username (str): username corresponding to the specified user_id
     """
-    query = {'_id': tweet_id}
-    result = tweets_collection.find_one(query)
-    if result is None:
-        # raise an exception if the tweet doesn't exist in the database
-        raise HTTPException(status_code = TweetNotFoundError.code, detail = TweetNotFoundError.description)
-    tweet = {
-        'id': result['_id'],
-        'text': result['text'],
-        'user_id': result['user_id'],
-        'quote_count': result['quote_count'],
-        'reply_count': result['reply_count'],
-        'retweet_count': result['retweet_count'],
-        'favorite_count': result['favorite_count'],
-        'created_at': result['timestamp'],
-        'coordinates': result['coordinates']
-    }
-    # add information on whether the tweet is a retweet
-    if 'retweet' in result:
-        tweet['retweet'] = "Yes"
-    else:
-        tweet['retweet'] = "No"
+    p_conn = psycopg2.connect(
+        dbname = "twitter",
+        user = "varshiniyanamandra",
+        password = "",
+        host = "localhost",
+        port = "5432"
+    )
+    p_cur = p_conn.cursor()
+    
+    # check if the user id is valid
+    p_cur.execute("SELECT screen_name FROM TwitterUser WHERE id = '{0}';".format(user_id))
+    username_db = p_cur.fetchone()
+    if username_db is None:
+        # raise an exception if the user doesn't exist in the database
+        raise HTTPException(status_code = UserNotFoundError.code, detail = UserNotFoundError.description)
+    username = username_db[0]
+    
+    p_cur.close()
+    
+    return username
 
-    return tweet
-
-
-# In[11]:
-
-
-# function to retreive tweets containing a specified keyword
-def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
+# function to retrieve tweets based on location
+def retrieve_tweets_location(location: str, distance = 100000, sort_criterion = 'popularity'):
     """
-        Function to get the information of tweets based on a user-specified keyword.
+        Function to retrieve tweets near a specified location.
         Input:
-            keyword (str): user-specified keyword
+            location (str): user-specified location
+            distance (int): radius of the search (100 kilometers, by default)
             sort_criterion (str): criteria for sorting the results
                 default: decreasing order of popularity (favorite count)
                 valid inputs:
                     'oldestToNewest', 'newestToOldest', 'popularity'
         Output:
-            out (list): list of tweets containing the keyword
+            tweets_list (list): list of tweets made from within the radius of the specified location
     """
+    # getting the latitude and longitude of the location specified
+    endpoint = "https://nominatim.openstreetmap.org/search"
+    params = {"q": location, "format": "json", "limit": 1}
+    # sending a request of the Nominatim API
+    response = requests.get(endpoint, params=params)
+    result = response.json()[0]
+    # getting the latitude and longitude from the response of the API
+    latitude = float(result["lat"])
+    longitude = float(result["lon"])
 
-    # check if sort_criterion is valid, if specified:
-    if sort_criterion is not None:
-        if sort_criterion not in ['oldestToNewest', 'newestToOldest', 'popularity']:
-            raise HTTPException(status_code = InvalidSortCriterionError.code, detail = InvalidSortCriterionError.description)
+    # creating a geospatial index on the coordinates field
+    tweets_collection.create_index([("coordinates", "2dsphere")])
+    
+    query = {"coordinates": {"$near": {"$geometry": {"type": "Point", "coordinates": [longitude, latitude]}, "$maxDistance": distance}}}
+    tweets_match = tweets_collection.find(query)
+    
+    if tweets_match is None:
+        return "There are no tweets near this location yet."
 
-    out = []
-    query = {'$text': {'$search': keyword}}
-    tweets_match = tweets_collection.find(query).limit(10) # we can add .limit(PAGE_LIMIT) here, if needed
+    tweets_list = []
     for result in tweets_match:
         tweet = {
             'id': result['_id'],
@@ -370,21 +433,19 @@ def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
         else:
             tweet['retweet'] = "No"
 
-        
-        out.append(tweet)
+        tweets_list.append(tweet)
 
     # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
     if sort_criterion == "oldestToNewest":
-        out = sorted(out, key = lambda x: int(x['created_at']), reverse = False)
+        tweets_list = sorted(tweets_list, key = lambda x: int(x['created_at']), reverse = False)
     elif sort_criterion == "newestToOldest":
         # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
-        out = sorted(out, key = lambda x: int(x['created_at']), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: int(x['created_at']), reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
         
-    return out
-
+    return tweets_list
 
 # main search function
 def search(username = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, location = None, sort_criterion = 'popularity', distance = 100000):
@@ -400,7 +461,16 @@ def search(username = None, username_tweets = None, user_id = None, tweet_id = N
         return get_user_info(username)
     elif username_tweets is not None:
         return retrieve_tweets_user(username_tweets, sort_criterion)
+    elif user_id is not None:
+        return retreive_screen_name(user_id)
     elif tweet_id is not None:
         return retrieve_tweet(tweet_id)
-    else:
+    elif keyword is not None:
         return retrieve_tweets_keyword(keyword, sort_criterion)
+    else:
+        return retrieve_tweets_location(location, distance, sort_criterion)
+
+x = search(username = "BJP4India")
+# print(x)
+cache_items = lrucache.get_cache_items()
+print(cache_items)
