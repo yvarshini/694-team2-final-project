@@ -1,6 +1,9 @@
 # [STAT-694] Data Management for Advanced Data Science Applications - Final Project - Team 2
 Repository containing the code for the final project for the [STAT-694] Data Management for Advanced Data Science Applications course at Rutgers University - New Brunswick, during the Spring 2023 semester.
 
+## Important Information
+Please use Python 3.9 to run this code, preferably 3.9.13.
+
 ## Initial (One-Time) Setup
 1. In a terminal, type the following: "pip install -r requirements.txt"
 2. Download PostgreSQL. Open the application and make sure the server is running.

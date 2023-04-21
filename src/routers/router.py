@@ -1,8 +1,7 @@
 from fastapi import APIRouter
-from utils.search_app_without_cache import search
+from search_app import search
 import sys
 import os
-from typing import Optional
 
 router = APIRouter()
 CURR_DIR = os.path.dirname(os.path.abspath(__file__))
