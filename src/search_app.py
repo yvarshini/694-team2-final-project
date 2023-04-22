@@ -97,7 +97,10 @@ def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
         Output:
             out (list): list of tweets containing the keyword
     """
-
+    # check if the tweet information is in the cache
+    search_by_keyword = lrucache.get(str)
+    if search_by_keyword is not None:
+        return search_by_keyword
     # check if sort_criterion is valid, if specified:
     if sort_criterion is not None:
         if sort_criterion not in ['oldestToNewest', 'newestToOldest', 'popularity']:
@@ -136,7 +139,8 @@ def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
-        
+
+    lrucache.put(str, out)    
     return out
 
 # function to search tweets based on tweet id
@@ -148,6 +152,10 @@ def retrieve_tweet(tweet_id):
         Output:
             tweet (JSON object): tweet corresponding to tweet_id
     """
+    # check if the tweet information is in the cache
+    search_by_tweetid = lrucache.get(tweet_id)
+    if search_by_tweetid is not None:
+        return search_by_tweetid
     query = {'_id': tweet_id}
     result = tweets_collection.find_one(query)
     if result is None:
@@ -170,6 +178,7 @@ def retrieve_tweet(tweet_id):
     else:
         tweet['retweet'] = "No"
 
+    lrucache.put(tweet_id, tweet)
     return tweet
 
 # function to retrieve all tweets by a user
@@ -185,7 +194,10 @@ def retrieve_tweets_user(localusername, username = None, user_id = None, sort_cr
         Output:
             tweets_list (list): list of tweets made by a user
     """
-
+    # check if the user information is in the cache
+    search_by_user = lrucache.get(username)
+    if search_by_user is not None:
+        return search_by_user
     p_conn = psycopg2.connect(
         dbname = "twitter",
         user = localusername,
@@ -253,6 +265,8 @@ def retrieve_tweets_user(localusername, username = None, user_id = None, sort_cr
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
+
+    lrucache.put(username, tweets_list)
         
     return tweets_list
 
@@ -265,6 +279,11 @@ def retreive_screen_name(localusername, user_id):
         Output:
             username (str): username corresponding to the specified user_id
     """
+    # check if the user information is in the cache
+    search_by_user_id = lrucache.get(user_id)
+    if search_by_user_id is not None:
+        return search_by_user_id
+
     p_conn = psycopg2.connect(
         dbname = "twitter",
         user = localusername,
@@ -283,7 +302,7 @@ def retreive_screen_name(localusername, user_id):
     username = username_db[0]
     
     p_cur.close()
-    
+    lrucache.put(user_id, username)
     return username
 
 # function to retrieve tweets based on location
@@ -300,6 +319,10 @@ def retrieve_tweets_location(location: str, distance = 100000, sort_criterion = 
         Output:
             tweets_list (list): list of tweets made from within the radius of the specified location
     """
+    # check if the location tweet information is in the cache
+    search_by_location = lrucache.get(str)
+    if search_by_location is not None:
+        return search_by_location
     # getting the latitude and longitude of the location specified
     endpoint = "https://nominatim.openstreetmap.org/search"
     params = {"q": location, "format": "json", "limit": 1}
@@ -349,11 +372,17 @@ def retrieve_tweets_location(location: str, distance = 100000, sort_criterion = 
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
-        
+
+    lrucache.put(str, tweets_list)  
     return tweets_list
 
 # function to get the top 10 most followed users
 def top_10_users(localusername):
+
+    # check if the top username information is in the cache
+    search_by_localuser = lrucache.get(localusername)
+    if search_by_localuser is not None:
+        return search_by_localuser
 
     # connect to the users database
     p_conn = psycopg2.connect(
@@ -383,11 +412,17 @@ def top_10_users(localusername):
             'favorites_count': user_info[8]
         }
         user_info_list.append(user_out)
-    
+
+    lrucache.put(localusername, user_info_list)  
     return user_info_list
 
 # function to get the trending tweets (most favorited, replied to and retweeted)
 def trendingTweets():
+        
+    # check if the Trending tweet information is in the cache
+    retrieve_trending_Tweet = lrucache.get("TrendingTweet")
+    if retrieve_trending_Tweet is not None:
+        return retrieve_trending_Tweet
     
     pipeline = [
         {"$project": {
@@ -429,7 +464,7 @@ def trendingTweets():
             tweet['retweet'] = "No"
 
         tweets_list.append(tweet)
-
+    lrucache.put("TrendingTweet", tweets_list)  
     return tweets_list
 
 # main search function

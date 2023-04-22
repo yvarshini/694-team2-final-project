@@ -97,11 +97,4 @@ class LRUCache:
         self.head.prev = node
         self.head = node
 
-    def get_cache_items(self):
-        # Get a list of all the items currently in the cache
-        items = []
-        node = self.head
-        while node:
-            items.append((node.key, node.value))
-            node = node.next
-        return items
+    
