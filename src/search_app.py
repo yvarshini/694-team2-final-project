@@ -98,7 +98,7 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
             out (list): list of tweets containing the keyword
     """
     # check if the tweet information is in the cache
-    search_by_keyword = lrucache.get(str)
+    search_by_keyword = lrucache.get(limit + str + sort_criterion)
     if search_by_keyword is not None:
         return search_by_keyword
     # check if sort_criterion is valid, if specified:
@@ -141,7 +141,7 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    lrucache.put(str, out)    
+    lrucache.put(limit + str + sort_criterion, out)    
     return out
 
 # function to search tweets based on tweet id
@@ -155,10 +155,10 @@ def retrieve_tweet(tweet_id):
     """
     tweet_id = int(tweet_id)
 
-    # # check if the tweet information is in the cache
-    # search_by_tweetid = lrucache.get(tweet_id)
-    # if search_by_tweetid is not None:
-    #     return search_by_tweetid
+    # check if the tweet information is in the cache
+     search_by_tweetid = lrucache.get(tweet_id)
+     if search_by_tweetid is not None:
+        return search_by_tweetid
 
     query = {'_id': tweet_id}
     result = tweets_collection.find_one(query)
@@ -182,7 +182,7 @@ def retrieve_tweet(tweet_id):
     else:
         tweet['retweet'] = "No"
 
-    # lrucache.put(tweet_id, tweet)
+    lrucache.put(tweet_id, tweet)
     return tweet
 
 # function to retrieve all tweets by a user
@@ -199,9 +199,9 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
             tweets_list (list): list of tweets made by a user
     """
     # check if the user information is in the cache
-    # search_by_user = lrucache.get(username)
-    # if search_by_user is not None:
-    #     return search_by_user
+    search_by_user = lrucache.get(limit + username + user_id + sort_criterion)
+    if search_by_user is not None:
+        return search_by_user
 
     p_conn = psycopg2.connect(
         dbname = "twitter",
@@ -273,7 +273,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    # lrucache.put(username, tweets_list)
+    lrucache.put(limit + username + user_id + sort_criterion, tweets_list)
         
     return tweets_list
 
@@ -327,9 +327,9 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
             tweets_list (list): list of tweets made from within the radius of the specified location
     """
     # # check if the location tweet information is in the cache
-    # search_by_location = lrucache.get(str)
-    # if search_by_location is not None:
-    #     return search_by_location
+    search_by_location = lrucache.get(limit + str + distance + sort_criterion)
+    if search_by_location is not None:
+        return search_by_location
 
     # getting the latitude and longitude of the location specified
     endpoint = "https://nominatim.openstreetmap.org/search"
@@ -382,7 +382,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    # lrucache.put(str, tweets_list)  
+    lrucache.put(limit + str + distance + sort_criterion, tweets_list)  
     return tweets_list
 
 # function to retrieve tweets with matching hastags
@@ -401,9 +401,9 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
     hashtags = hashtag.split()
 
     # # check if the tweet information is in the cache
-    # search_by_hashtag = lrucache.get(str)
-    # if search_by_hashtag is not None:
-    #     return search_by_hashtag
+    search_by_hashtag = lrucache.get(limit + hashtag + sort_criterion)
+    if search_by_hashtag is not None:
+        return search_by_hashtag
 
     out = []
     query = {"hashtags": {"$in": hashtags}}
@@ -440,14 +440,14 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    # lrucache.put(str, out)    
+    lrucache.put(limit + hashtag + sort_criterion, out)    
     return out
 
 # function to get the top 10 most followed users
 def top_10_users(localusername):
 
     # check if the top username information is in the cache
-    search_by_localuser = lrucache.get(localusername)
+    search_by_localuser = lrucache.get(top_10_users)
     if search_by_localuser is not None:
         return search_by_localuser
 
@@ -480,7 +480,7 @@ def top_10_users(localusername):
         }
         user_info_list.append(user_out)
 
-    lrucache.put(localusername, user_info_list)  
+    lrucache.put("top_10_users", user_info_list)  
     return user_info_list
 
 # function to get the trending tweets (most favorited, replied to and retweeted)
