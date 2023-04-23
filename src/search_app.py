@@ -4,7 +4,7 @@ from pymongo import MongoClient
 from fastapi import HTTPException
 from exceptions.exceptions import *
 import requests
-from cacheClass import LRUCache
+from utils.cacheClass import LRUCache
 import getpass
 import time
 
