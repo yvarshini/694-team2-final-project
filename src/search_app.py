@@ -6,6 +6,7 @@ from exceptions.exceptions import *
 import requests
 from cacheClass import LRUCache
 import getpass
+import time
 
 if __name__ == '__main__':
     lrucache = LRUCache(100)
@@ -31,7 +32,7 @@ print(p_conn.get_dsn_parameters(), "\n")
 
 # connect to the MongoDB database
 mongo_conn = MongoClient("mongodb+srv://vm574:twitter574@cluster0.nwilsw2.mongodb.net/?retryWrites=true&w=majority")
-mongo_db = mongo_conn['twitter_data']
+mongo_db = mongo_conn['final_db']
 tweets_collection = mongo_db['tweets']
 
 # creating index
@@ -85,7 +86,7 @@ def get_user_info(localusername, username):
     return user_out
 
 # function to retreive tweets containing a specified keyword
-def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
+def retrieve_tweets_keyword(keyword: str, sort_criterion = 'popularity'):
     """
         Function to get the information of tweets based on a user-specified keyword.
         Input:
@@ -108,7 +109,7 @@ def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
 
     out = []
     query = {'$text': {'$search': keyword}}
-    tweets_match = tweets_collection.find(query).limit(10) # we can add .limit(PAGE_LIMIT) here, if needed
+    tweets_match = tweets_collection.find(query) # we can add .limit(PAGE_LIMIT) here, if needed
     for result in tweets_match:
         tweet = {
             'id': result['_id'],
@@ -138,7 +139,7 @@ def retrieve_tweets_keyword(keyword: str, sort_criterion = None):
         out = sorted(out, key = lambda x: int(x['created_at']), reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
+        out = sorted(out, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
 
     lrucache.put(str, out)    
     return out
@@ -264,7 +265,7 @@ def retrieve_tweets_user(localusername, username = None, user_id = None, sort_cr
         tweets_list = sorted(tweets_list, key = lambda x: int(x['created_at']), reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
 
     lrucache.put(username, tweets_list)
         
@@ -371,10 +372,67 @@ def retrieve_tweets_location(location: str, distance = 100000, sort_criterion = 
         tweets_list = sorted(tweets_list, key = lambda x: int(x['created_at']), reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
 
     lrucache.put(str, tweets_list)  
     return tweets_list
+
+# function to retrieve tweets with matching hastags
+def retrieve_tweets_hashtags(hashtag, sort_criterion = 'popularity'):
+    """
+        Function to retrieve tweets containing one or more user-specified hashtags.
+        Input:
+            hashtag (str): user-specified hashtag(s). If multiple, they must be separated by spaces.
+            sort_criterion (str): criteria for sorting the results
+                default: decreasing order of popularity (favorite count)
+                valid inputs:
+                    'oldestToNewest', 'newestToOldest', 'popularity'
+        Output:
+            out (list): list of tweets containing the hashtag(s)
+    """
+    hashtags = hashtag.split()
+
+    # check if the tweet information is in the cache
+    search_by_hashtag = lrucache.get(str)
+    if search_by_hashtag is not None:
+        return search_by_hashtag
+
+    out = []
+    query = {"hashtags": {"$in": hashtags}}
+    tweets_match = tweets_collection.find(query)
+    for result in tweets_match:
+        tweet = {
+            'id': result['_id'],
+            'text': result['text'],
+            'user_id': result['user_id'],
+            'quote_count': result['quote_count'],
+            'reply_count': result['reply_count'],
+            'retweet_count': result['retweet_count'],
+            'favorite_count': result['favorite_count'],
+            'created_at': result['timestamp'],
+            'coordinates': result['coordinates']
+        }
+        # add information on whether the tweet is a retweet
+        if 'retweet' in result:
+            tweet['retweet'] = "Yes"
+        else:
+            tweet['retweet'] = "No"
+
+        
+        out.append(tweet)
+
+    # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
+    if sort_criterion == "oldestToNewest":
+        out = sorted(out, key = lambda x: int(x['created_at']), reverse = False)
+    elif sort_criterion == "newestToOldest":
+        # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
+        out = sorted(out, key = lambda x: int(x['created_at']), reverse = True)
+    else:
+        # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
+        out = sorted(out, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
+
+    lrucache.put(str, out)    
+    return out
 
 # function to get the top 10 most followed users
 def top_10_users(localusername):
@@ -468,8 +526,8 @@ def trendingTweets():
     return tweets_list
 
 # main search function
-def search(username_for_user_info = None, user_id_for_tweets = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, location = None, sort_criterion = 'popularity', distance = 100000, top10users = "no", trendingTweets = "no"):
-    params = [username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, location, top10users, trendingTweets]
+def search(username_for_user_info = None, user_id_for_tweets = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, hashtags = None, location = None, sort_criterion = 'popularity', distance = 100000, top10users = "no", trendingTweets = "no"):
+    params = [username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location, top10users, trendingTweets]
 
     # raise exception if no search parameters are specified
     if all(x is None for x in params):
@@ -491,9 +549,14 @@ def search(username_for_user_info = None, user_id_for_tweets = None, username_tw
         return retrieve_tweet(tweet_id)
     elif keyword is not None:
         return retrieve_tweets_keyword(keyword, sort_criterion)
+    elif hashtags is not None:
+        return retrieve_tweets_hashtags(hashtags, sort_criterion)
     elif location is not None:
         return retrieve_tweets_location(location, distance, sort_criterion)
     elif top10users != "no":
         return top_10_users(localusername)
     else:
         return trendingTweets()
+
+p = retrieve_tweets_hashtags("corona")
+print(p)
