@@ -153,10 +153,13 @@ def retrieve_tweet(tweet_id):
         Output:
             tweet (JSON object): tweet corresponding to tweet_id
     """
-    # check if the tweet information is in the cache
-    search_by_tweetid = lrucache.get(tweet_id)
-    if search_by_tweetid is not None:
-        return search_by_tweetid
+    tweet_id = int(tweet_id)
+
+    # # check if the tweet information is in the cache
+    # search_by_tweetid = lrucache.get(tweet_id)
+    # if search_by_tweetid is not None:
+    #     return search_by_tweetid
+
     query = {'_id': tweet_id}
     result = tweets_collection.find_one(query)
     if result is None:
@@ -179,7 +182,7 @@ def retrieve_tweet(tweet_id):
     else:
         tweet['retweet'] = "No"
 
-    lrucache.put(tweet_id, tweet)
+    # lrucache.put(tweet_id, tweet)
     return tweet
 
 # function to retrieve all tweets by a user
@@ -196,9 +199,10 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
             tweets_list (list): list of tweets made by a user
     """
     # check if the user information is in the cache
-    search_by_user = lrucache.get(username)
-    if search_by_user is not None:
-        return search_by_user
+    # search_by_user = lrucache.get(username)
+    # if search_by_user is not None:
+    #     return search_by_user
+
     p_conn = psycopg2.connect(
         dbname = "twitter",
         user = localusername,
@@ -221,7 +225,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
 
     else:
         # check if the user_id is valid
-        p_cur.execute("SELECT * FROM TwitterUser WHERE id = '{0}';".format(user_id))
+        p_cur.execute("SELECT * FROM TwitterUser WHERE id = '{0}';".format(int(user_id)))
         username_db = p_cur.fetchone()
         if username_db is None:
             # raise an exception if the user doesn't exist in the database
@@ -230,6 +234,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
         p_cur.close()
 
     # if the user exists, proceed to search MongoDB
+    user_id = int(user_id) # convert user_id to int
     query = {'user_id': user_id}
     limit = int(limit)
     tweets_match = tweets_collection.find(query).limit(limit)
@@ -268,7 +273,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    lrucache.put(username, tweets_list)
+    # lrucache.put(username, tweets_list)
         
     return tweets_list
 
@@ -321,10 +326,11 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
         Output:
             tweets_list (list): list of tweets made from within the radius of the specified location
     """
-    # check if the location tweet information is in the cache
-    search_by_location = lrucache.get(str)
-    if search_by_location is not None:
-        return search_by_location
+    # # check if the location tweet information is in the cache
+    # search_by_location = lrucache.get(str)
+    # if search_by_location is not None:
+    #     return search_by_location
+
     # getting the latitude and longitude of the location specified
     endpoint = "https://nominatim.openstreetmap.org/search"
     params = {"q": location, "format": "json", "limit": 1}
@@ -337,7 +343,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
 
     # creating a geospatial index on the coordinates field
     tweets_collection.create_index([("coordinates", "2dsphere")])
-    
+    distance = int(distance)
     query = {"coordinates": {"$near": {"$geometry": {"type": "Point", "coordinates": [longitude, latitude]}, "$maxDistance": distance}}}
     limit = int(limit)
     tweets_match = tweets_collection.find(query).limit(limit)
@@ -376,7 +382,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    lrucache.put(str, tweets_list)  
+    # lrucache.put(str, tweets_list)  
     return tweets_list
 
 # function to retrieve tweets with matching hastags
@@ -394,10 +400,10 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
     """
     hashtags = hashtag.split()
 
-    # check if the tweet information is in the cache
-    search_by_hashtag = lrucache.get(str)
-    if search_by_hashtag is not None:
-        return search_by_hashtag
+    # # check if the tweet information is in the cache
+    # search_by_hashtag = lrucache.get(str)
+    # if search_by_hashtag is not None:
+    #     return search_by_hashtag
 
     out = []
     query = {"hashtags": {"$in": hashtags}}
@@ -434,7 +440,7 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    lrucache.put(str, out)    
+    # lrucache.put(str, out)    
     return out
 
 # function to get the top 10 most followed users
