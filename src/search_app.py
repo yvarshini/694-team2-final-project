@@ -156,13 +156,13 @@ def retrieve_tweet(tweet_id):
     tweet_id = int(tweet_id)
 
     # check if the tweet information is in the cache
-     search_by_tweetid = lrucache.get(tweet_id)
-     if search_by_tweetid is not None:
+    search_by_tweetid = lrucache.get(tweet_id)
+    if search_by_tweetid is not None:
         return search_by_tweetid
 
     query = {'_id': tweet_id}
     result = tweets_collection.find_one(query)
-    if result is None:
+    if len(result) == 0:
         # raise an exception if the tweet doesn't exist in the database
         raise HTTPException(status_code = TweetNotFoundError.code, detail = TweetNotFoundError.description)
     tweet = {
@@ -239,7 +239,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
     limit = int(limit)
     tweets_match = tweets_collection.find(query).limit(limit)
     
-    if tweets_match is None:
+    if len(tweets_match) == 0:
         return "This user has not tweeted anything yet."
 
     tweets_list = []
@@ -348,7 +348,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
     limit = int(limit)
     tweets_match = tweets_collection.find(query).limit(limit)
     
-    if tweets_match is None:
+    if len(tweets_match) == 0:
         return "There are no tweets near this location yet."
 
     tweets_list = []
