@@ -18,12 +18,8 @@ class UnsuccessfulConnectionPostgreSQL(Exception):
 
 class NoParametersGivenError(Exception):
     code = 400
-    description = {"error message": "No search parameters specified. Please specify one of user_id, username, username_tweets, keyword, tweet_id or location."}
+    description = {"error message": "No search parameters specified. Please specify one of username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags or location."}
 
 class TooManyParametersGivenError(Exception):
     code = 400
-    description = {"error message": "Too many search parameters specified. Please specify only one of user_id, username, username_tweets, keyword, tweet_id or location."}
-
-class LocalUsernameNotSpecifiedError(Exception):
-    code = 400
-    description = {"error message": "Local system username not specified. Please specify your system's username."}
+    description = {"error message": "Too many search parameters specified. Please specify only one of username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags or location."}

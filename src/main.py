@@ -22,7 +22,7 @@ The distance is in meters.
 app = FastAPI(
     openapi_tags = tags_metadata,
     docs_url = "/docs",
-    title = "team-2-api",
+    title = "team-2-search-application",
     version = "1.0",
     description = description,
     openapi_url = "/openapi.json"

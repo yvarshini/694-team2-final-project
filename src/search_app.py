@@ -566,6 +566,3 @@ def search(username_for_user_info = None, user_id_for_tweets = None, username_tw
         return top_10_users(localusername)
     else:
         return trendingTweets()
-
-# p = retrieve_tweets_hashtags("corona")
-# print(p)
