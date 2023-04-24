@@ -1,0 +1,8 @@
+# the requirements are not versioned to make installation easier
+fastapi
+uvicorn
+requests
+pymongo
+psycopg2-binary
+pandas
+jupyter
