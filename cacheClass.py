@@ -23,7 +23,7 @@ class Node:
         
 class LRUCache:
     """
-    LRU cache implementation using a doubly linked list and a hashmap.
+        LRU cache implementation using a doubly linked list and a hashmap.
     """
     def __init__(self, capacity):
         self.capacity = capacity
