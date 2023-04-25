@@ -8,7 +8,7 @@ Please use Python 3.9 to run this code, preferably 3.9.13.
 1. In a terminal, type the following: "pip install -r requirements.txt"
 2. Download PostgreSQL. Open the application and make sure the server is running.
 3. Go to utils > twitter-users.ipynb and run the file. Give your system's username when prompted. Please make sure that the file 'corona-out-3' is added to the utils folder prior to running the file.
-4. Go to utils > tweets_to_mongoDB.ipynb and run the file.
+4. Go to utils > tweets_to_mongoDB.ipynb and run the file. This is suggested to check the connection to the MongoDB cluster.
 
 ## Running the API
 1. In the terminal, type: "cd src". This command allows you to change the working directory to the 'src' folder.
