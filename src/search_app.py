@@ -561,15 +561,16 @@ def trendingTweets():
     return tweets_list
 
 # main search function
-def search(username_for_user_info = None, user_id_for_tweets = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, hashtags = None, location = None, sort_criterion = 'popularity', distance = 100000, top10users = "no", trendingTweets = "no", limit = 10):
+def search(username_for_user_info = None, user_id_for_tweets = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, hashtags = None, location = None, sort_criterion = 'popularity', distance = 100000, top10users = "no", trending_tweets = "no", limit = 10):
     params = [username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location]
 
-    # raise exception if no search parameters are specified
-    if all(x is None for x in params):
-        raise HTTPException(status_code = NoParametersGivenError.code, detail = NoParametersGivenError.description)
-    # raise exception if too many search parameters are specified
-    if params.count(None) < len(params) - 1:
-        raise HTTPException(status_code = TooManyParametersGivenError.code, detail = TooManyParametersGivenError.description)
+    if (top10users == 'no' and trending_tweets == 'no'):
+        # raise exception if no search parameters are specified
+        if all(x is None for x in params):
+            raise HTTPException(status_code = NoParametersGivenError.code, detail = NoParametersGivenError.description)
+        # raise exception if too many search parameters are specified
+        if params.count(None) < len(params) - 1:
+            raise HTTPException(status_code = TooManyParametersGivenError.code, detail = TooManyParametersGivenError.description)
     
     # find the localusername
     localusername = getpass.getuser()
