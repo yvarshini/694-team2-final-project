@@ -116,7 +116,7 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
     tweets_match = tweets_collection.find(query).limit(limit) # we can add .limit(PAGE_LIMIT) here, if needed
     for result in tweets_match:
         tweet = {
-            'id': result['_id'],
+            'id_string': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
             'quote_count': result['quote_count'],
@@ -172,7 +172,7 @@ def retrieve_tweet(tweet_id):
         # raise an exception if the tweet doesn't exist in the database
         raise HTTPException(status_code = TweetNotFoundError.code, detail = TweetNotFoundError.description)
     tweet = {
-        'id': result['_id'],
+        'id': str(result['_id']),
         'text': result['text'],
         'user_id': result['user_id'],
         'quote_count': result['quote_count'],
@@ -256,7 +256,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
     tweets_list = []
     for result in tweets_match:
         tweet = {
-            'id': result['_id'],
+            'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
             'quote_count': result['quote_count'],
@@ -373,7 +373,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
     tweets_list = []
     for result in tweets_match:
         tweet = {
-            'id': result['_id'],
+            'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
             'quote_count': result['quote_count'],
@@ -432,7 +432,7 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
     tweets_match = tweets_collection.find(query).limit(limit)
     for result in tweets_match:
         tweet = {
-            'id': result['_id'],
+            'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
             'quote_count': result['quote_count'],
@@ -539,7 +539,7 @@ def trendingTweets():
     tweets_list = []
     for result in tweets_match:
         tweet = {
-            'id': result['_id'],
+            'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
             'quote_count': result['quote_count'],
@@ -593,3 +593,7 @@ def search(username_for_user_info = None, user_id_for_tweets = None, username_tw
         return top_10_users(localusername)
     else:
         return trendingTweets()
+
+x = retrieve_tweet(1237436114887041024)
+# x = trendingTweets()
+print(x)
