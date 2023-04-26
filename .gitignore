@@ -130,3 +130,4 @@ dmypy.json
 
 # input data file
 corona-out-3
+src/cache.json

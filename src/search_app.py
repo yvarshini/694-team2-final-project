@@ -9,7 +9,7 @@ import getpass
 import time
 from logger.logger import logger
 
-lrucache = LRUCache(100)
+lrucache = LRUCache(100, "cache.json")
 
 # connecting to the PostgreSQL database
 try:
