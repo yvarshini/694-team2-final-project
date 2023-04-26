@@ -101,7 +101,7 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
             out (list): list of tweets containing the keyword
     """
     # check if the tweet information is in the cache
-    search_by_keyword = lrucache.get(limit + str + sort_criterion)
+    search_by_keyword = lrucache.get(limit + keyword + sort_criterion)
     if search_by_keyword is not None:
         logger.info("retrieve_tweets_keyword - query in cache")
         return search_by_keyword
@@ -145,7 +145,7 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    lrucache.put(str(limit) + str + sort_criterion, out)  
+    lrucache.put(str(limit) + keyword + sort_criterion, out)  
     logger.info("retrieve_tweets_keyword-" + str(keyword) + "-" + str(lrucache.display_cache()))  
     return out
 
@@ -161,14 +161,14 @@ def retrieve_tweet(tweet_id):
     tweet_id = int(tweet_id)
 
     # check if the tweet information is in the cache
-    search_by_tweetid = lrucache.get(tweet_id)
+    search_by_tweetid = lrucache.get(str(tweet_id) + 'tweetsearchbytweetid')
     if search_by_tweetid is not None:
         logger.info("retrieve_tweet - query in cache")
         return search_by_tweetid
 
     query = {'_id': tweet_id}
     result = tweets_collection.find_one(query)
-    if result == {}:
+    if result == None:
         # raise an exception if the tweet doesn't exist in the database
         raise HTTPException(status_code = TweetNotFoundError.code, detail = TweetNotFoundError.description)
     tweet = {
@@ -188,7 +188,7 @@ def retrieve_tweet(tweet_id):
     else:
         tweet['retweet'] = "No"
 
-    lrucache.put(str(tweet_id), tweet)
+    lrucache.put(str(tweet_id) + 'tweetsearchbytweetid', tweet)
     logger.info("retrieve_tweet-" + str(tweet_id) + "-" + str(lrucache.display_cache()))  
     return tweet
 
@@ -345,7 +345,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
             tweets_list (list): list of tweets made from within the radius of the specified location
     """
     # # check if the location tweet information is in the cache
-    search_by_location = lrucache.get(limit + location + distance + sort_criterion)
+    search_by_location = lrucache.get(str(limit) + location + str(distance) + sort_criterion)
     if search_by_location is not None:
         logger.info("retrieve_tweets_location - query in cache")
         return search_by_location
@@ -401,7 +401,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
 
-    lrucache.put(str(limit) + location + distance + sort_criterion, tweets_list) 
+    lrucache.put(str(limit) + location + str(distance) + sort_criterion, tweets_list) 
     logger.info("retrieve_tweets_location-" + str(location) +  "-" + str(lrucache.display_cache()))  
     return tweets_list
 
@@ -469,7 +469,7 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
 def top_10_users(localusername):
 
     # check if the top username information is in the cache
-    search_by_localuser = lrucache.get(top_10_users)
+    search_by_localuser = lrucache.get('top_10_users')
     if search_by_localuser is not None:
         logger.info("top_10_users found in cache")
         return search_by_localuser
