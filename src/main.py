@@ -1,6 +1,11 @@
 from routers import router
 from fastapi import FastAPI
 import uvicorn
+from fastapi.middleware import Middleware
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
+import time
 
 tags_metadata = [
     {
@@ -25,10 +30,23 @@ app = FastAPI(
     title = "team-2-search-application",
     version = "1.0",
     description = description,
-    openapi_url = "/openapi.json"
+    openapi_url = "/openapi.json",
+    middleware = [
+        Middleware(CORSMiddleware, allow_origins = ['*'])
+    ]
 )
 
+class TimingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        start_time = time.time()
+        response: Response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers['X-Process-Time'] = str(process_time)
+        return response
+
 app.include_router(router.router)
+
+app.add_middleware(TimingMiddleware)
 
 if __name__ == "__main__":
     uvicorn.run(app)
