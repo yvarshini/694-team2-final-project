@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from logger.logger import logger
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -54,6 +55,7 @@ class LRUCache:
                     self._add_to_front(node)
                     self.size += 1
         except FileNotFoundError:
+            logger.info("Cache file not found.")
             pass
 
     def _save_to_disk(self):
@@ -62,6 +64,7 @@ class LRUCache:
         for key, node in self.cache.items():
             cache_data[key] = node.value
         with open(self.cache_file, 'w') as f:
+            logger.info("Cache saved to disk.")
             json.dump(cache_data, f, cls = DateTimeEncoder)
         
     def get(self, key):

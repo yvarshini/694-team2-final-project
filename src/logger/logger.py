@@ -8,4 +8,4 @@ logging.basicConfig(filename="logfile.log",
 logger = logging.getLogger()
  
 # set the threshold of the logger to level DEBUG
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)

@@ -15,13 +15,19 @@ tags_metadata = [
 ]
 
 description = """
-This is an application designed to search across a given twitter dataset based on the following parameters: username, username_tweets, user_id, tweet_id, keyword, location, sort_criterion, distance.
+This is an application designed to search across a given twitter dataset based on the following parameters: username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location and time_range.
+
 IMPORTANT:
+
 Accepted options for certain fields are as follows:
+
     1. sort_criterion: accepts only 'popularity', 'oldestToNewest' or 'newestToOldest'
-    2. top10users and trendingTweets: any value other than 'no' (default) is considered a yes
-    3. distance and limit should be numeric values.
-The distance is in meters.
+
+    2. time_range: accepts only '1 week', '1 month', '3 months', '6 months', '1 year', '5 years' and 'all time'
+
+    3. top10users and trendingTweets: any value other than 'no' (default) is considered a yes
+
+    4. distance and limit should be numeric values. The distance is in meters.
 """
 
 app = FastAPI(

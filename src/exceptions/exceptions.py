@@ -18,8 +18,12 @@ class UnsuccessfulConnectionPostgreSQL(Exception):
 
 class NoParametersGivenError(Exception):
     code = 400
-    description = {"error message": "No search parameters specified. Please specify one of username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags or location."}
+    description = {"error message": "No search parameters specified. Please specify one of username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location or time_range."}
 
 class TooManyParametersGivenError(Exception):
     code = 400
-    description = {"error message": "Too many search parameters specified. Please specify only one of username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags or location."}
+    description = {"error message": "Too many search parameters specified. Please specify only one of username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location or time range."}
+
+class InvalidTimeWindowError(Exception):
+    code = 400
+    description = {"error message": "Invalid time window. Please provide one of '1 week', '1 month', '3 months', '6 months', '1 year', '5 years' or 'all time'."}

@@ -6,8 +6,8 @@ from exceptions.exceptions import *
 import requests
 from utils.cacheClass import LRUCache
 import getpass
-import time
 from logger.logger import logger
+from datetime import datetime, timedelta
 
 lrucache = LRUCache(100, "cache.json")
 
@@ -32,7 +32,7 @@ print(p_conn.get_dsn_parameters(), "\n")
 
 # connect to the MongoDB database
 mongo_conn = MongoClient("mongodb+srv://vm574:twitter574@cluster0.nwilsw2.mongodb.net/?retryWrites=true&w=majority")
-mongo_db = mongo_conn['final_db']
+mongo_db = mongo_conn['not_another_db']
 tweets_collection = mongo_db['tweets']
 
 # creating index
@@ -119,31 +119,30 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
             'id_string': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
-            'quote_count': result['quote_count'],
-            'reply_count': result['reply_count'],
-            'retweet_count': result['retweet_count'],
-            'favorite_count': result['favorite_count'],
-            'created_at': result['timestamp'],
-            'coordinates': result['coordinates']
+            'tweet_pop': result['tweet_pop'],
+            'created_at': result['timestamp']
         }
         # add information on whether the tweet is a retweet
         if 'retweet' in result:
             tweet['retweet'] = "Yes"
-        else:
-            tweet['retweet'] = "No"
-
+        # add information about coordinates if the key exists
+        if 'coordinates' in result:
+            tweet['coordinates']: result['coordinates']
         
         out.append(tweet)
 
+    if len(out) == 0:
+        return "There are no tweets with this keyword."
+
     # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
     if sort_criterion == "oldestToNewest":
-        out = sorted(out, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = False)
+        out = sorted(out, key = lambda x: x['created_at'], reverse = False)
     elif sort_criterion == "newestToOldest":
         # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
-        out = sorted(out, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
+        out = sorted(out, key = lambda x: x['created_at'], reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
+        out = sorted(out, key = lambda x: int(x['tweet_pop']), reverse = True)
 
     lrucache.put(str(limit) + keyword + sort_criterion, out)  
     logger.info("retrieve_tweets_keyword-" + str(keyword) + "-" + str(lrucache.display_cache()))  
@@ -175,22 +174,91 @@ def retrieve_tweet(tweet_id):
         'id': str(result['_id']),
         'text': result['text'],
         'user_id': result['user_id'],
-        'quote_count': result['quote_count'],
-        'reply_count': result['reply_count'],
-        'retweet_count': result['retweet_count'],
-        'favorite_count': result['favorite_count'],
-        'created_at': result['timestamp'],
-        'coordinates': result['coordinates']
+        'tweet_pop': result['tweet_pop'],
+        'created_at': result['timestamp']
     }
     # add information on whether the tweet is a retweet
     if 'retweet' in result:
         tweet['retweet'] = "Yes"
-    else:
-        tweet['retweet'] = "No"
+    # add information about coordinates if the key exists
+        if 'coordinates' in result:
+            tweet['coordinates']: result['coordinates']
 
     lrucache.put(str(tweet_id) + 'tweetsearchbytweetid', tweet)
     logger.info("retrieve_tweet-" + str(tweet_id) + "-" + str(lrucache.display_cache()))  
     return tweet
+
+# function to retreieve tweets in a time range
+def retrieve_tweets_time_range(limit, time_range, sort_criterion = 'popularity'):
+    """
+        Function to retrieve all tweets from a time window, counted from the current time
+        Input:
+            time_range (str): Can be '1 week', '1 month', '3 months', '6 months', '1 year', '5 years' or 'all time'
+            sort_criterion (str): criteria for sorting the results
+                default: decreasing order of popularity (favorite count)
+                valid inputs:
+                    'oldestToNewest', 'newestToOldest', 'popularity'
+        Output:
+            tweets_list (list): list of tweets made during the given time duration
+    """
+
+    current_date = datetime.utcnow()
+
+    if time_range == '1 week':
+        start_date = current_date - timedelta(days=7)
+    elif time_range == '1 month':
+        start_date = current_date - timedelta(days=30)
+    elif time_range == '3 months':
+        start_date = current_date - timedelta(days=90)
+    elif time_range == '6 months':
+        start_date = current_date - timedelta(days=180)
+    elif time_range == '1 year':
+        start_date = current_date - timedelta(days=365)
+    elif time_range == '5 years':
+        start_date = current_date - timedelta(days=1825)
+    elif time_range == 'all time':
+        start_date = datetime(1900, 1, 1)
+    else:
+        raise HTTPException(status_code = InvalidTimeWindowError.code, detail = InvalidTimeWindowError.description)
+
+    start_date_unix = start_date.timestamp()
+    current_date_unix = current_date.timestamp()
+    query = {'timestamp': {'$gte': start_date_unix, '$lt': current_date_unix}}
+    limit = int(limit)
+    tweets_match = tweets_collection.find(query).limit(limit)
+
+    tweets_list = []
+    for result in tweets_match:
+        tweet = {
+            'id': str(result['_id']),
+            'text': result['text'],
+            'user_id': result['user_id'],
+            'tweet_pop': result['tweet_pop'],
+            'created_at': result['timestamp']
+        }
+        # add information on whether the tweet is a retweet
+        if 'retweet' in result:
+            tweet['retweet'] = "Yes"
+        # add information about coordinates if the key exists
+        if 'coordinates' in result:
+            tweet['coordinates']: result['coordinates']
+        
+        tweets_list.append(tweet)
+
+    if len(tweets_list) == 0:
+        return "There are no tweets made in this time range."
+
+    # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
+    if sort_criterion == "oldestToNewest":
+        tweets_list = sorted(tweets_list, key = lambda x: x['created_at'], reverse = False)
+    elif sort_criterion == "newestToOldest":
+        # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
+        tweets_list = sorted(tweets_list, key = lambda x: x['created_at'], reverse = True)
+    else:
+        # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
+        tweets_list = sorted(tweets_list, key = lambda x: int(x['tweet_pop']), reverse = True) 
+
+    return tweets_list
 
 # function to retrieve all tweets by a user
 def retrieve_tweets_user(limit, localusername, username = None, user_id = None, sort_criterion = 'popularity'):
@@ -249,9 +317,6 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
     query = {'user_id': user_id}
     limit = int(limit)
     tweets_match = tweets_collection.find(query).limit(limit)
-    
-    if tweets_match == {}:
-        return "This user has not tweeted anything yet."
 
     tweets_list = []
     for result in tweets_match:
@@ -259,30 +324,30 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
             'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
-            'quote_count': result['quote_count'],
-            'reply_count': result['reply_count'],
-            'retweet_count': result['retweet_count'],
-            'favorite_count': result['favorite_count'],
-            'created_at': result['timestamp'],
-            'coordinates': result['coordinates']
+            'tweet_pop': result['tweet_pop'],
+            'created_at': result['timestamp']
         }
         # add information on whether the tweet is a retweet
         if 'retweet' in result:
             tweet['retweet'] = "Yes"
-        else:
-            tweet['retweet'] = "No"
+        # add information about coordinates if the key exists
+        if 'coordinates' in result:
+            tweet['coordinates']: result['coordinates']
 
         tweets_list.append(tweet)
 
+    if len(tweets_list) == 0:
+        return "This user has not tweeted anything yet."
+
     # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
     if sort_criterion == "oldestToNewest":
-        tweets_list = sorted(tweets_list, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = False)
+        tweets_list = sorted(tweets_list, key = lambda x: x['created_at'], reverse = False)
     elif sort_criterion == "newestToOldest":
         # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
-        tweets_list = sorted(tweets_list, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: x['created_at'], reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: int(x['tweet_pop']), reverse = True)
 
     if username is not None:
         lrucache.put(str(limit) + username + sort_criterion + "usertweets", tweets_list)
@@ -367,39 +432,36 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
     limit = int(limit)
     tweets_match = tweets_collection.find(query).limit(limit)
     
-    if tweets_match == {}:
-        return "There are no tweets near this location yet."
-
     tweets_list = []
     for result in tweets_match:
         tweet = {
             'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
-            'quote_count': result['quote_count'],
-            'reply_count': result['reply_count'],
-            'retweet_count': result['retweet_count'],
-            'favorite_count': result['favorite_count'],
-            'created_at': result['timestamp'],
-            'coordinates': result['coordinates']
+            'tweet_pop': result['tweet_pop'],
+            'created_at': result['timestamp']
         }
         # add information on whether the tweet is a retweet
         if 'retweet' in result:
             tweet['retweet'] = "Yes"
-        else:
-            tweet['retweet'] = "No"
+        # add information about coordinates if the key exists
+        if 'coordinates' in result:
+            tweet['coordinates']: result['coordinates']
 
         tweets_list.append(tweet)
 
+    if len(tweets_list) == 0:
+        return "There are no tweets near this location yet."
+
     # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
     if sort_criterion == "oldestToNewest":
-        tweets_list = sorted(tweets_list, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = False)
+        tweets_list = sorted(tweets_list, key = lambda x: x['created_at'], reverse = False)
     elif sort_criterion == "newestToOldest":
         # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
-        tweets_list = sorted(tweets_list, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: x['created_at'], reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        tweets_list = sorted(tweets_list, key = lambda x: int(x['favorite_count']), reverse = True)
+        tweets_list = sorted(tweets_list, key = lambda x: int(x['tweet_pop']), reverse = True)
 
     lrucache.put(str(limit) + location + str(distance) + sort_criterion, tweets_list) 
     logger.info("retrieve_tweets_location-" + str(location) +  "-" + str(lrucache.display_cache()))  
@@ -430,36 +492,36 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
     query = {"hashtags": {"$in": hashtags}}
     limit = int(limit)
     tweets_match = tweets_collection.find(query).limit(limit)
+
     for result in tweets_match:
         tweet = {
             'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
-            'quote_count': result['quote_count'],
-            'reply_count': result['reply_count'],
-            'retweet_count': result['retweet_count'],
-            'favorite_count': result['favorite_count'],
-            'created_at': result['timestamp'],
-            'coordinates': result['coordinates']
+            'tweet_pop': result['tweet_pop'],
+            'created_at': result['timestamp']
         }
         # add information on whether the tweet is a retweet
         if 'retweet' in result:
             tweet['retweet'] = "Yes"
-        else:
-            tweet['retweet'] = "No"
-
+        # add information about coordinates if the key exists
+        if 'coordinates' in result:
+            tweet['coordinates']: result['coordinates']
         
         out.append(tweet)
 
+    if len(out) == 0:
+        return ("There are no tweets under this hastag.")
+
     # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
     if sort_criterion == "oldestToNewest":
-        out = sorted(out, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = False)
+        out = sorted(out, key = lambda x: x['created_at'], reverse = False)
     elif sort_criterion == "newestToOldest":
         # otherwise sort the results from newest to oldest before returning if specified 'newestToOldest'
-        out = sorted(out, key = lambda x: time.strptime(x['created_at'], '%a %b %d %H:%M:%S %Y'), reverse = True)
+        out = sorted(out, key = lambda x: x['created_at'], reverse = True)
     else:
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
-        out = sorted(out, key = lambda x: int(x['favorite_count']), reverse = True)
+        out = sorted(out, key = lambda x: int(x['tweet_pop']), reverse = True)
 
     lrucache.put(str(limit) + hashtag + sort_criterion, out) 
     logger.info("retrieve_tweets_hashtags-" + str(hashtag) + "-" + str(lrucache.display_cache()))     
@@ -521,16 +583,12 @@ def trendingTweets():
             "_id": 1,
             "text": 1,
             "user_id": 1,
-            "quote_count": 1,
-            "reply_count": 1,
-            "retweet_count": 1,
-            "favorite_count": 1,
+            "tweet_pop": 1,
             "timestamp": 1,
-            "coordinates": 1,
-            "retweet": {"$ifNull": ["$retweeted_status", False]},
-            "sum": {"$sum": ["$favorite_count", "$retweet_count", "$reply_count"]}
+            "coordinates": {"$ifNull": ["$coordinates", False]},
+            "retweet": {"$ifNull": ["$retweeted_status", False]}
         }},
-        {"$sort": {"sum": -1}},
+        {"$sort": {"tweet_pop": -1}},
         {"$limit": 10}
     ]
 
@@ -542,18 +600,15 @@ def trendingTweets():
             'id': str(result['_id']),
             'text': result['text'],
             'user_id': result['user_id'],
-            'quote_count': result['quote_count'],
-            'reply_count': result['reply_count'],
-            'retweet_count': result['retweet_count'],
-            'favorite_count': result['favorite_count'],
-            'created_at': result['timestamp'],
-            'coordinates': result['coordinates']
+            'tweet_pop': result['tweet_pop'],
+            'created_at': result['timestamp']
         }
         # add information on whether the tweet is a retweet
         if 'retweet' in result:
             tweet['retweet'] = "Yes"
-        else:
-            tweet['retweet'] = "No"
+        # add information about coordinates if the key exists
+        if 'coordinates' in result:
+            tweet['coordinates']: result['coordinates']
 
         tweets_list.append(tweet)
     lrucache.put("TrendingTweet", tweets_list) 
@@ -561,8 +616,8 @@ def trendingTweets():
     return tweets_list
 
 # main search function
-def search(username_for_user_info = None, user_id_for_tweets = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, hashtags = None, location = None, sort_criterion = 'popularity', distance = 100000, top10users = "no", trending_tweets = "no", limit = 10):
-    params = [username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location]
+def search(username_for_user_info = None, user_id_for_tweets = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, hashtags = None, location = None, time_range = None, sort_criterion = 'popularity', distance = 100000, top10users = "no", trending_tweets = "no", limit = 10):
+    params = [username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location, time_range]
 
     if (top10users == 'no' and trending_tweets == 'no'):
         # raise exception if no search parameters are specified
@@ -589,11 +644,9 @@ def search(username_for_user_info = None, user_id_for_tweets = None, username_tw
         return retrieve_tweets_hashtags(limit, hashtags, sort_criterion)
     elif location is not None:
         return retrieve_tweets_location(limit, location, distance, sort_criterion)
+    elif time_range is not None:
+        return retrieve_tweets_time_range(limit, time_range, sort_criterion)
     elif top10users != "no":
         return top_10_users(localusername)
     else:
         return trendingTweets()
-
-x = retrieve_tweet(1237436114887041024)
-# x = trendingTweets()
-print(x)
