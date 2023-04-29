@@ -1,3 +1,7 @@
+"""
+    author: Varshini Yanamandra
+"""
+
 # defining custom exception classes
 
 class UserNotFoundError(Exception):

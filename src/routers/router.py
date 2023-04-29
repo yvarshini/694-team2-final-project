@@ -1,3 +1,7 @@
+"""
+    author: Varshini Yanamandra
+"""
+
 from fastapi import APIRouter
 from search_app import search
 import sys

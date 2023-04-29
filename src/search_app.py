@@ -1,3 +1,7 @@
+"""
+    author: Varshini Yanamandra
+"""
+
 # importing required libraries
 import psycopg2
 from pymongo import MongoClient

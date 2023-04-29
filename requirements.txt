@@ -1,3 +1,6 @@
+"""
+    author: Varshini Yanamandra
+"""
 # the requirements are not versioned to make installation easier
 fastapi
 uvicorn

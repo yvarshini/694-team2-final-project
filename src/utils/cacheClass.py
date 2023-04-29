@@ -1,3 +1,7 @@
+"""
+    author: Lakshmi Priyanka Kurapati
+"""
+
 import json
 from datetime import datetime
 from logger.logger import logger
