@@ -7,6 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 import time
 
+# defining metadata tags
 tags_metadata = [
     {
         "name": "Twitter Search Application",
@@ -14,6 +15,7 @@ tags_metadata = [
     }
 ]
 
+# description of the API to be displayed on the Swagger page
 description = """
 This is an application designed to search across a given twitter dataset based on the following parameters: username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location and time_range.
 
@@ -42,6 +44,7 @@ app = FastAPI(
     ]
 )
 
+# adding middleware to measure and display the time taken for each request to the API
 class TimingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         start_time = time.time()
@@ -50,8 +53,9 @@ class TimingMiddleware(BaseHTTPMiddleware):
         response.headers['X-Process-Time'] = str(process_time)
         return response
 
+# adding the router to the app
 app.include_router(router.router)
-
+# adding the timing middleware to the app
 app.add_middleware(TimingMiddleware)
 
 if __name__ == "__main__":

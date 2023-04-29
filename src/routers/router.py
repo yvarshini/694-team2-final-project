@@ -3,7 +3,9 @@ from search_app import search
 import sys
 import os
 
+# creating the router object
 router = APIRouter()
+# setting the working directory
 CURR_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(CURR_DIR)
 

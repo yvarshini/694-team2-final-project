@@ -1,4 +1,4 @@
-# need to work on exception handling outside of the context of APIs.
+# defining custom exception classes
 
 class UserNotFoundError(Exception):
     code = 404

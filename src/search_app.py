@@ -43,6 +43,7 @@ def get_user_info(localusername, username):
     """
         This function returns the user information as a JSON object.
         Input:
+            localusername (str): automatically retrieved by Python; the local system's username.
             username (str): Twitter user ID which we want to look up
         Output:
             user_out (JSON object): user information corresponding to username
@@ -55,6 +56,7 @@ def get_user_info(localusername, username):
         logger.info("get_user_info - query in cache")
         return user_out
     
+    # connect to the PostgresSQL database
     p_conn = psycopg2.connect(
         dbname = "twitter",
         user = localusername,
@@ -69,6 +71,7 @@ def get_user_info(localusername, username):
     if user_info is None:
         # raise an exception if the user doesn't exist in the database
         raise HTTPException(status_code = UserNotFoundError.code, detail = UserNotFoundError.description)
+    
     user_out = {
         'id': user_info[0],
         'name': user_info[1],
@@ -80,9 +83,10 @@ def get_user_info(localusername, username):
         'statuses_count': user_info[7],
         'favorites_count': user_info[8]
     }
+    # add the new search and result to the cache
     lrucache.put(username, user_out)
     logger.info("get_user_info-" + str(username) + "-" + str(lrucache.display_cache()))
-    
+    # close the cursor object
     p_cur.close()
 
     return user_out
@@ -92,6 +96,7 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
     """
         Function to get the information of tweets based on a user-specified keyword.
         Input:
+            limit (int): maximum number of results to be displayed
             keyword (str): user-specified keyword
             sort_criterion (str): criteria for sorting the results
                 default: decreasing order of popularity (favorite count)
@@ -105,14 +110,15 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
     if search_by_keyword is not None:
         logger.info("retrieve_tweets_keyword - query in cache")
         return search_by_keyword
-    # check if sort_criterion is valid, if specified:
+    
+    # check if sort_criterion is valid, if specified
     if sort_criterion is not None:
         if sort_criterion not in ['oldestToNewest', 'newestToOldest', 'popularity']:
             raise HTTPException(status_code = InvalidSortCriterionError.code, detail = InvalidSortCriterionError.description)
 
     out = []
     query = {'$text': {'$search': keyword}}
-    limit = int(limit)
+    limit = int(limit) # convert string limit to integer
     tweets_match = tweets_collection.find(query).limit(limit) # we can add .limit(PAGE_LIMIT) here, if needed
     for result in tweets_match:
         tweet = {
@@ -131,6 +137,7 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
         
         out.append(tweet)
 
+    # return a message if there are no matches
     if len(out) == 0:
         return "There are no tweets with this keyword."
 
@@ -144,8 +151,10 @@ def retrieve_tweets_keyword(limit, keyword: str, sort_criterion = 'popularity'):
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         out = sorted(out, key = lambda x: int(x['tweet_pop']), reverse = True)
 
+    # add the search and result to the cache
     lrucache.put(str(limit) + keyword + sort_criterion, out)  
     logger.info("retrieve_tweets_keyword-" + str(keyword) + "-" + str(lrucache.display_cache()))  
+
     return out
 
 # function to search tweets based on tweet id
@@ -157,6 +166,7 @@ def retrieve_tweet(tweet_id):
         Output:
             tweet (JSON object): tweet corresponding to tweet_id
     """
+    # convert string to integer in order to query the database
     tweet_id = int(tweet_id)
 
     # check if the tweet information is in the cache
@@ -170,6 +180,7 @@ def retrieve_tweet(tweet_id):
     if result == None:
         # raise an exception if the tweet doesn't exist in the database
         raise HTTPException(status_code = TweetNotFoundError.code, detail = TweetNotFoundError.description)
+    
     tweet = {
         'id': str(result['_id']),
         'text': result['text'],
@@ -184,8 +195,10 @@ def retrieve_tweet(tweet_id):
         if 'coordinates' in result:
             tweet['coordinates']: result['coordinates']
 
+    # add the search and result to cache
     lrucache.put(str(tweet_id) + 'tweetsearchbytweetid', tweet)
     logger.info("retrieve_tweet-" + str(tweet_id) + "-" + str(lrucache.display_cache()))  
+
     return tweet
 
 # function to retreieve tweets in a time range
@@ -193,6 +206,7 @@ def retrieve_tweets_time_range(limit, time_range: str, sort_criterion = 'popular
     """
         Function to retrieve all tweets from a time window, counted from the current time
         Input:
+            limit (int): maximum number of results to be displayed
             time_range (str): Can be '1 week', '1 month', '3 months', '6 months', '1 year', '5 years' or 'all time'
             sort_criterion (str): criteria for sorting the results
                 default: decreasing order of popularity (favorite count)
@@ -208,8 +222,11 @@ def retrieve_tweets_time_range(limit, time_range: str, sort_criterion = 'popular
         logger.info("retrieve_tweets_time_range - query in cache")
         return search_by_time
 
+    # get the current date
     current_date = datetime.utcnow()
 
+    # the starting date is defined to be x days behind the current date
+    # x = 7 for 1 week, 30 for 1 month, etc.
     if time_range == '1 week':
         start_date = current_date - timedelta(days=7)
     elif time_range == '1 month':
@@ -225,12 +242,16 @@ def retrieve_tweets_time_range(limit, time_range: str, sort_criterion = 'popular
     elif time_range == 'all time':
         start_date = datetime(1900, 1, 1)
     else:
+        # raise exception if an invalid time window is provided
         raise HTTPException(status_code = InvalidTimeWindowError.code, detail = InvalidTimeWindowError.description)
 
+    # convert the date strings to timestamp objects
     start_date_unix = start_date.timestamp()
     current_date_unix = current_date.timestamp()
+
+    # query for tweets with timestamp greater than or equal to the start date and less than the current date
     query = {'timestamp': {'$gte': start_date_unix, '$lt': current_date_unix}}
-    limit = int(limit)
+    limit = int(limit) # convert string limit to integer
     tweets_match = tweets_collection.find(query).limit(limit)
 
     tweets_list = []
@@ -251,6 +272,7 @@ def retrieve_tweets_time_range(limit, time_range: str, sort_criterion = 'popular
         
         tweets_list.append(tweet)
 
+    # return a custom message to the user if there are no matches
     if len(tweets_list) == 0:
         return "There are no tweets made in this time range."
 
@@ -264,8 +286,10 @@ def retrieve_tweets_time_range(limit, time_range: str, sort_criterion = 'popular
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['tweet_pop']), reverse = True) 
 
+    # add the search and result to cache
     lrucache.put(time_range + 'timedsearch', tweets_list)
     logger.info("retrieve_tweets_time_range-" + time_range + "-" + str(lrucache.display_cache())) 
+
     return tweets_list
 
 # function to retrieve all tweets by a user
@@ -273,7 +297,10 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
     """
         Function to retrieve all tweets by a specific user (user-specified username)
         Input:
+            limit (int): maximum number of results to be displayed
+            localusername (str): automatically retrieved by Python; the local system's username
             username (str): user-specified username
+            user_id (int): user-specified user_id
             sort_criterion (str): criteria for sorting the results
                 default: decreasing order of popularity (favorite count)
                 valid inputs:
@@ -282,14 +309,15 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
             tweets_list (list): list of tweets made by a user
     """
     # check if the user information is in the cache
-    if username is not None:
+    if username is not None: # if username is specified
         search_by_user = lrucache.get(limit + username + sort_criterion + "usertweets")
-    elif user_id is not None:
+    elif user_id is not None: # if user_id is specified
         search_by_user = lrucache.get(limit + user_id + sort_criterion + "usertweets")
     if search_by_user is not None:
         logger.info("retrieve_tweets_user - query in cache")
         return search_by_user
 
+    # connect to the PostgresSQL database
     p_conn = psycopg2.connect(
         dbname = "twitter",
         user = localusername,
@@ -306,6 +334,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
         if username_db is None:
             # raise an exception if the user doesn't exist in the database
             raise HTTPException(status_code = UserNotFoundError.code, detail = UserNotFoundError.description)
+        # get the user_id corresponding to the username
         user_id = username_db[0]
         
         p_cur.close()
@@ -321,9 +350,9 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
         p_cur.close()
 
     # if the user exists, proceed to search MongoDB
-    user_id = int(user_id) # convert user_id to int
+    user_id = int(user_id) # convert string user_id to integer
     query = {'user_id': user_id}
-    limit = int(limit)
+    limit = int(limit) # convert string limit to integer
     tweets_match = tweets_collection.find(query).limit(limit)
 
     tweets_list = []
@@ -344,6 +373,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
 
         tweets_list.append(tweet)
 
+    # return custom message to the user if there are no matches
     if len(tweets_list) == 0:
         return "This user has not tweeted anything yet."
 
@@ -357,6 +387,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['tweet_pop']), reverse = True)
 
+    # add the search and result to cache
     if username is not None:
         lrucache.put(str(limit) + username + sort_criterion + "usertweets", tweets_list)
         logger.info("retrieve_tweets_user-" + str(username) + "-" + str(lrucache.display_cache()))  
@@ -371,7 +402,8 @@ def retreive_screen_name(localusername, user_id):
     """
         Function to retrieve tweets near a specified location.
         Input:
-            user_id: user-specified user ID
+            localusername (str): automatically retrieved by Python; the local system's username
+            user_id (int): user-specified user ID
         Output:
             username (str): username corresponding to the specified user_id
     """
@@ -381,6 +413,7 @@ def retreive_screen_name(localusername, user_id):
         logger.info("retreive_screen_name - query in cache")
         return search_by_user_id
 
+    # connect to the PostgreSQL database
     p_conn = psycopg2.connect(
         dbname = "twitter",
         user = localusername,
@@ -397,10 +430,12 @@ def retreive_screen_name(localusername, user_id):
         # raise an exception if the user doesn't exist in the database
         raise HTTPException(status_code = UserNotFoundError.code, detail = UserNotFoundError.description)
     username = username_db[0]
-    
     p_cur.close()
+
+    # put the search and result into cache
     lrucache.put(str(user_id), username)
     logger.info("retreive_screen_name-" + str(user_id) + "-" + str(lrucache.display_cache())) 
+
     return username
 
 # function to retrieve tweets based on location
@@ -408,6 +443,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
     """
         Function to retrieve tweets near a specified location.
         Input:
+            limit (int): maximum number of results to be displayed
             location (str): user-specified location
             distance (int): radius of the search (100 kilometers, by default)
             sort_criterion (str): criteria for sorting the results
@@ -417,7 +453,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
         Output:
             tweets_list (list): list of tweets made from within the radius of the specified location
     """
-    # # check if the location tweet information is in the cache
+    # check if the location tweet information is in the cache
     search_by_location = lrucache.get(str(limit) + location + str(distance) + sort_criterion)
     if search_by_location is not None:
         logger.info("retrieve_tweets_location - query in cache")
@@ -426,18 +462,20 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
     # getting the latitude and longitude of the location specified
     endpoint = "https://nominatim.openstreetmap.org/search"
     params = {"q": location, "format": "json", "limit": 1}
-    # sending a request of the Nominatim API
+
+    # sending a request to the Nominatim API
     response = requests.get(endpoint, params=params)
     result = response.json()[0]
+
     # getting the latitude and longitude from the response of the API
     latitude = float(result["lat"])
     longitude = float(result["lon"])
 
     # creating a geospatial index on the coordinates field
     tweets_collection.create_index([("coordinates", "2dsphere")])
-    distance = int(distance)
+    distance = int(distance) # converting string distance to integer
     query = {"coordinates": {"$near": {"$geometry": {"type": "Point", "coordinates": [longitude, latitude]}, "$maxDistance": distance}}}
-    limit = int(limit)
+    limit = int(limit) # converting string limit to integer
     tweets_match = tweets_collection.find(query).limit(limit)
     
     tweets_list = []
@@ -458,6 +496,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
 
         tweets_list.append(tweet)
 
+    # return custom message to the user if there are no matches
     if len(tweets_list) == 0:
         return "There are no tweets near this location yet."
 
@@ -471,8 +510,10 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['tweet_pop']), reverse = True)
 
+    # add the search and result into cache
     lrucache.put(str(limit) + location + str(distance) + sort_criterion, tweets_list) 
-    logger.info("retrieve_tweets_location-" + str(location) +  "-" + str(lrucache.display_cache()))  
+    logger.info("retrieve_tweets_location-" + str(location) +  "-" + str(lrucache.display_cache())) 
+
     return tweets_list
 
 # function to retrieve tweets with matching hastags
@@ -480,6 +521,7 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
     """
         Function to retrieve tweets containing one or more user-specified hashtags.
         Input:
+            limit (int): maximum number of results to be displayed
             hashtag (str): user-specified hashtag(s). If multiple, they must be separated by spaces.
             sort_criterion (str): criteria for sorting the results
                 default: decreasing order of popularity (favorite count)
@@ -488,9 +530,10 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
         Output:
             out (list): list of tweets containing the hashtag(s)
     """
+    # split hashtags separated by spaces and insert them as elements into a list
     hashtags = hashtag.split()
 
-    # # check if the tweet information is in the cache
+    # check if the tweet information is in the cache
     search_by_hashtag = lrucache.get(limit + hashtag + sort_criterion)
     if search_by_hashtag is not None:
         logger.info("retrieve_tweets_hashtags - query in cache")
@@ -498,7 +541,7 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
 
     out = []
     query = {"hashtags": {"$in": hashtags}}
-    limit = int(limit)
+    limit = int(limit) # convert string limit into integer
     tweets_match = tweets_collection.find(query).limit(limit)
 
     for result in tweets_match:
@@ -518,6 +561,7 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
         
         out.append(tweet)
 
+    # return custom message to the user if there are no matches
     if len(out) == 0:
         return ("There are no tweets under this hastag.")
 
@@ -531,12 +575,22 @@ def retrieve_tweets_hashtags(limit, hashtag, sort_criterion = 'popularity'):
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         out = sorted(out, key = lambda x: int(x['tweet_pop']), reverse = True)
 
+    # add the search and result into cache
     lrucache.put(str(limit) + hashtag + sort_criterion, out) 
-    logger.info("retrieve_tweets_hashtags-" + str(hashtag) + "-" + str(lrucache.display_cache()))     
+    logger.info("retrieve_tweets_hashtags-" + str(hashtag) + "-" + str(lrucache.display_cache())) 
+
     return out
 
 # function to get the top 10 most followed users
 def top_10_users(localusername):
+    """
+        Function to obtain the 10 most-followed users in the database.
+        Input:
+            localusername (str): automatically retrieved by Python; the local system's username
+        Output:
+            user_info_list (list): list containing user information of the top 10 most-followed users, ordered in the decreasing
+                order of number of followers.
+    """
 
     # check if the top username information is in the cache
     search_by_localuser = lrucache.get('top_10_users')
@@ -544,7 +598,7 @@ def top_10_users(localusername):
         logger.info("top_10_users found in cache")
         return search_by_localuser
 
-    # connect to the users database
+    # connecting to the PostgreSQL database
     p_conn = psycopg2.connect(
         dbname = "twitter",
         user = localusername,
@@ -554,7 +608,7 @@ def top_10_users(localusername):
     )
     p_cur = p_conn.cursor()
 
-    # select the top 10 most-followed users
+    # selecting the top 10 most-followed users
     p_cur.execute("SELECT * FROM TwitterUser ORDER BY followers_count DESC LIMIT 10;")
     users_list = p_cur.fetchall()
     
@@ -573,12 +627,21 @@ def top_10_users(localusername):
         }
         user_info_list.append(user_out)
 
+    # add the search and result into cache
     lrucache.put("top_10_users", user_info_list)  
-    logger.info("top_10_users-" + str(lrucache.display_cache()))  
+    logger.info("top_10_users-" + str(lrucache.display_cache()))
+
     return user_info_list
 
 # function to get the trending tweets (most favorited, replied to and retweeted)
 def trendingTweets():
+    """
+        Function to obtain the trending tweets at any moment. The trending tweets are the tweets with the highest popularity score.
+        Input:
+            None
+        Output:
+            tweets_list (list): top 10 tweets with the highest popularity score, sorted in decreasing order.
+    """
         
     # check if the Trending tweet information is in the cache
     retrieve_trending_Tweet = lrucache.get("TrendingTweet")
@@ -586,6 +649,7 @@ def trendingTweets():
         logger.info("Trending tweets in cache")
         return retrieve_trending_Tweet
     
+    # create a pipeline to obtain 10 tweets with the highest popularity score
     pipeline = [
         {"$project": {
             "_id": 1,
@@ -619,25 +683,36 @@ def trendingTweets():
             tweet['coordinates']: result['coordinates']
 
         tweets_list.append(tweet)
+
+    # add the search and result into cache
     lrucache.put("TrendingTweet", tweets_list) 
     logger.info("trendingTweets-" + str(lrucache.display_cache()))  
+
     return tweets_list
 
 # main search function
 def search(username_for_user_info = None, user_id_for_tweets = None, username_tweets = None, user_id = None, tweet_id = None, keyword = None, hashtags = None, location = None, time_range = None, sort_criterion = 'popularity', distance = 100000, top10users = "no", trending_tweets = "no", limit = 10):
+    """
+        The main search function that is called by the API router. This function calls relevant search functions based on the 
+        parameters input by the user.
+    """
+    
+    # create a list of mandatory parameters to be specified unless one of top10users and trending_tweets is not 'no'
     params = [username_for_user_info, user_id_for_tweets, username_tweets, user_id, tweet_id, keyword, hashtags, location, time_range]
 
+    # if both top10users and trending_tweets are 'no', check whether one mandatory search parameter has been specified
     if (top10users == 'no' and trending_tweets == 'no'):
-        # raise exception if no search parameters are specified
+        # raise exception if no mandatory search parameters are specified
         if all(x is None for x in params):
             raise HTTPException(status_code = NoParametersGivenError.code, detail = NoParametersGivenError.description)
-        # raise exception if too many search parameters are specified
+        # raise exception if too many mandatory search parameters are specified (more than one)
         if params.count(None) < len(params) - 1:
             raise HTTPException(status_code = TooManyParametersGivenError.code, detail = TooManyParametersGivenError.description)
     
     # find the localusername
     localusername = getpass.getuser()
 
+    # call relevant search functions based on the input parameters
     if username_for_user_info is not None:
         return get_user_info(localusername, username_for_user_info)
     elif username_tweets is not None or user_id_for_tweets is not None:
