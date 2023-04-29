@@ -189,7 +189,7 @@ def retrieve_tweet(tweet_id):
     return tweet
 
 # function to retreieve tweets in a time range
-def retrieve_tweets_time_range(limit, time_range, sort_criterion = 'popularity'):
+def retrieve_tweets_time_range(limit, time_range: str, sort_criterion = 'popularity'):
     """
         Function to retrieve all tweets from a time window, counted from the current time
         Input:
@@ -201,6 +201,12 @@ def retrieve_tweets_time_range(limit, time_range, sort_criterion = 'popularity')
         Output:
             tweets_list (list): list of tweets made during the given time duration
     """
+
+    # check if the tweet information is in the cache
+    search_by_time = lrucache.get(time_range + 'timedsearch')
+    if search_by_time is not None:
+        logger.info("retrieve_tweets_time_range - query in cache")
+        return search_by_time
 
     current_date = datetime.utcnow()
 
@@ -258,6 +264,8 @@ def retrieve_tweets_time_range(limit, time_range, sort_criterion = 'popularity')
         # sort the output in the decreasing order of favorites (popularity), by default or if specified 'popularity'
         tweets_list = sorted(tweets_list, key = lambda x: int(x['tweet_pop']), reverse = True) 
 
+    lrucache.put(time_range + 'timedsearch', tweets_list)
+    logger.info("retrieve_tweets_time_range-" + time_range + "-" + str(lrucache.display_cache())) 
     return tweets_list
 
 # function to retrieve all tweets by a user

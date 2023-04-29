@@ -54,10 +54,9 @@ class LRUCache:
                     self.cache[key] = node
                     self._add_to_front(node)
                     self.size += 1
-        except Exception as e:
-            logger.info("Cache file not found: , e")            
+            logger.info("Cache loaded from disk.")          
         except FileNotFoundError:
-            logger.info("Cache file not found.")
+            logger.info("Cache file not found on disk.")
             pass
 
     def _save_to_disk(self):
