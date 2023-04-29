@@ -465,8 +465,11 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
 
     # sending a request to the Nominatim API
     response = requests.get(endpoint, params=params)
-    result = response.json()[0]
-
+    try:
+        result = response.json()[0]
+    except:
+        raise HTTPException(status_code = BadDistanceError.code, detail = BadDistanceError.description)
+ 
     # getting the latitude and longitude from the response of the API
     latitude = float(result["lat"])
     longitude = float(result["lon"])
@@ -498,7 +501,7 @@ def retrieve_tweets_location(limit, location: str, distance = 100000, sort_crite
 
     # return custom message to the user if there are no matches
     if len(tweets_list) == 0:
-        return "There are no tweets near this location yet."
+        return "There are no tweets near this location (for the specified radius) yet."
 
     # sort the results from oldest to newest before returning, if specified 'oldestToNewest'
     if sort_criterion == "oldestToNewest":

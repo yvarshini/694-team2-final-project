@@ -27,3 +27,7 @@ class TooManyParametersGivenError(Exception):
 class InvalidTimeWindowError(Exception):
     code = 400
     description = {"error message": "Invalid time window. Please provide one of '1 week', '1 month', '3 months', '6 months', '1 year', '5 years' or 'all time'."}
+
+class BadDistanceError(Exception):
+    code = 400
+    description = {"error message": "Bad request. Please check your location or increase the distance and try again."}
