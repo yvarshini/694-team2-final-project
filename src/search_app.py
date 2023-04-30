@@ -299,7 +299,7 @@ def retrieve_tweets_time_range(limit, time_range: str, sort_criterion = 'popular
 # function to retrieve all tweets by a user
 def retrieve_tweets_user(limit, localusername, username = None, user_id = None, sort_criterion = 'popularity'):
     """
-        Function to retrieve all tweets by a specific user (user-specified username)
+        Function to retrieve all tweets by a specific user.
         Input:
             limit (int): maximum number of results to be displayed
             localusername (str): automatically retrieved by Python; the local system's username
@@ -404,7 +404,7 @@ def retrieve_tweets_user(limit, localusername, username = None, user_id = None, 
 # function to retreive the screen name from the user_id
 def retreive_screen_name(localusername, user_id):
     """
-        Function to retrieve tweets near a specified location.
+        Function to retrieve the screen name of a user given the user_id.
         Input:
             localusername (str): automatically retrieved by Python; the local system's username
             user_id (int): user-specified user ID
